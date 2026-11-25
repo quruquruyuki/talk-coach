@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="会話コーチ">
+<meta name="theme-color" content="#ffffff">
+<title>会話コーチ</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root { --fg:#37352f; --sub:#787774; --line:#e9e9e7; --bg:#fff; --soft:#f7f6f3; --red:#e03e3e; --blue:#2383e2; --fs:17px; }
+  body.dark { --fg:#e6e6e4; --sub:#9b9a97; --line:#34342f; --bg:#191917; --soft:#25251f; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif; color:var(--fg); background:var(--bg); font-size:16px; }
+  header { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line);
+    padding:calc(env(safe-area-inset-top) + 10px) 16px 10px; display:flex; align-items:center; gap:8px; z-index:5; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  button { font:inherit; color:inherit; background:none; border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+  button.primary { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  button.big { width:100%; padding:14px; font-size:17px; font-weight:600; margin-top:18px; }
+  button:disabled { opacity:.4; }
+  .icon { border:none; font-size:20px; padding:6px 8px; }
+  main { padding:16px; padding-bottom:calc(env(safe-area-inset-bottom) + 40px); max-width:720px; margin:0 auto; }
+  label { display:block; font-size:13px; color:var(--sub); margin:16px 0 4px; }
+  input, select, textarea { width:100%; font:inherit; color:inherit; border:1px solid var(--line); border-radius:8px; padding:10px; background:var(--bg); }
+  textarea { min-height:72px; line-height:1.6; resize:vertical; }
+  h2 { font-size:16px; margin:26px 0 6px; }
+  .hint { color:var(--sub); font-size:13px; line-height:1.6; }
+  .hidden { display:none !important; }
+  .seg2 { display:flex; flex-wrap:wrap; gap:6px; }
+  .seg2 button { border-radius:18px; padding:7px 13px; color:var(--sub); font-size:14px; }
+  .seg2 button.on { background:var(--fg); color:var(--bg); border-color:var(--fg); font-weight:600; }
+  .cl { display:flex; gap:6px; align-items:center; margin-top:6px; }
+  .cl input { flex:1; padding:8px; }
+  .cl button { border:none; color:var(--sub); padding:6px 8px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .item { padding:13px 2px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; }
+  .item .t { flex:1; min-width:0; }
+  .item b { display:block; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item small { color:var(--sub); }
+  .tag { font-size:12px; padding:2px 8px; border-radius:4px; background:var(--soft); color:var(--sub); white-space:nowrap; }
+  dialog { border:none; border-radius:14px; padding:0; width:min(92vw,520px); max-height:85vh; background:var(--bg); color:var(--fg); }
+  dialog::backdrop { background:rgba(0,0,0,.35); }
+  .dlg { padding:16px 18px 20px; overflow:auto; max-height:85vh; }
+  .toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 24px); transform:translateX(-50%); background:var(--fg); color:var(--bg);
+    padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:.3s; pointer-events:none; max-width:90vw; z-index:30; }
+  .toast.show { opacity:1; }
+
+  /* 会話中 */
+  #live header { gap:10px; }
+  .clock { font-variant-numeric:tabular-nums; font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#9b9a97; display:inline-block; }
+  .dot.rec { background:var(--red); animation:pulse 1.4s infinite; }
+  .dot.think { background:var(--blue); animation:pulse .7s infinite; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  .stat { font-size:12px; color:var(--sub); }
+  .lvl { height:4px; background:var(--soft); border-radius:2px; overflow:hidden; margin:0 16px; }
+  .lvl div { height:100%; width:0; background:#9b9a97; transition:width .08s; }
+  .cards { min-height:38vh; }
+  .card { border-radius:12px; padding:12px 14px; margin-top:10px; border-left:6px solid; background:var(--soft); position:relative; animation:pop .35s; }
+  @keyframes pop { from { transform:translateY(-6px); opacity:0; } }
+  .card .k { font-size:12px; font-weight:700; letter-spacing:.02em; }
+  .card .x { font-size:var(--fs); font-weight:600; line-height:1.45; margin-top:2px; }
+  .card .w { font-size:13px; color:var(--sub); margin-top:4px; line-height:1.5; }
+  .card .done { position:absolute; right:8px; top:8px; border:none; color:var(--sub); font-size:13px; padding:4px 8px; }
+  .card.missing { border-color:#d9730d; } .card.missing .k { color:#d9730d; }
+  .card.unclear { border-color:#e03e3e; } .card.unclear .k { color:#e03e3e; }
+  .card.ask { border-color:#2383e2; } .card.ask .k { color:#2383e2; }
+  .card.offer { border-color:#0f7b6c; } .card.offer .k { color:#0f7b6c; }
+  .card.warn { border-color:#9065b0; } .card.warn .k { color:#9065b0; }
+  .card.old { opacity:.5; animation:none; }
+  .card.old .x { font-size:15px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .chip { font-size:13px; padding:5px 10px; border-radius:14px; border:1px solid var(--line); color:var(--sub); }
+  .chip.ok { background:#dbeddb; color:#2b593f; border-color:#dbeddb; text-decoration:line-through; }
+  body.dark .chip.ok { background:#2b3a2f; color:#8fc59f; border-color:#2b3a2f; }
+  .tx { font-size:14px; line-height:1.7; color:var(--sub); max-height:30vh; overflow:auto; background:var(--soft); border-radius:10px; padding:10px 12px; white-space:pre-wrap; }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:var(--bg); border-top:1px solid var(--line); padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);
+    display:flex; gap:8px; }
+  .bar button { flex:1; padding:12px 4px; font-size:15px; white-space:nowrap; }
+  .bar button.on { background:#fbf3db; border-color:#e9d9a8; color:#7a5a12; }
+  .alert { background:#ffe2dd; color:#5d1715; border-radius:10px; padding:10px 12px; margin-top:10px; font-size:14px; }
+
+  /* 振り返り */
+  .sec h3 { font-size:15px; margin:20px 0 4px; }
+  .sec ul { margin:4px 0; padding-left:20px; line-height:1.7; }
+  .box { background:var(--soft); border-radius:10px; padding:12px; line-height:1.7; white-space:pre-wrap; }
+  a { color:var(--blue); }
+</style>
+</head>
+<body>
+
+<!-- ログイン -->
+<section id="login" class="hidden">
+  <header><h1>会話コーチ</h1></header>
+  <main>
+    <p class="hint">ほかの個人アプリと同じアカウントでログインしてください。</p>
+    <form id="loginForm">
+      <label>メールアドレス</label><input id="lEmail" type="email" autocomplete="username" required>
+      <label>パスワード</label><input id="lPass" type="password" autocomplete="current-password" required>
+      <button id="lBtn" class="primary big">ログイン</button>
+      <p id="lMsg" class="hint" style="color:var(--red)"></p>
+    </form>
+  </main>
+</section>
+
+<!-- 準備 -->
+<section id="home" class="hidden">
+  <header><h1>会話コーチ</h1><button class="icon" id="openSet" aria-label="設定">⚙︎</button></header>
+  <main>
+    <div class="row" style="margin-top:0">
+      <select id="tplSel" style="flex:1"><option value="">テンプレートを使う…</option></select>
+      <button id="tplSave">保存</button>
+    </div>
+
+    <label>場面</label>
+    <div class="seg2" id="modeSeg">
+      <button data-m="sell">提案する側</button>
+      <button data-m="buy">説明を受ける側</button>
+      <button data-m="mr">医師面談</button>
+      <button data-m="meet">打ち合わせ</button>
+    </div>
+
+    <label>今日の目的</label>
+    <input id="fGoal" placeholder="例：次回のデモの日程を決める／見積もりの中身を確かめる">
+    <label>相手</label>
+    <input id="fWho" placeholder="例：〇〇病院 消化器内科 △△先生／□□ホーム 営業の方">
+
+    <label>確認リスト <span class="hint">（話に出たら自動でチェックされます）</span></label>
+    <div id="clList"></div>
+    <div class="row">
+      <button id="clAdd">＋ 項目を追加</button>
+      <button id="clPreset">この場面のおすすめを入れる</button>
+    </div>
+
+    <label>手持ちの提案・材料 <span class="hint">（あると提案のカードが出やすくなります）</span></label>
+    <textarea id="fOffers" placeholder="例：新しい資料（〇〇の使い分け）、勉強会の案内、キャンペーン価格…"></textarea>
+    <label>メモ・前提</label>
+    <textarea id="fNotes" placeholder="例：前回は価格がネックだった／予算は〇〇万円まで"></textarea>
+
+    <button class="primary big" id="startBtn">● 会話を始める</button>
+    <p class="hint">録音することを、できるだけ相手にひと言伝えてから使ってください。音声はどこにも保存しません（文字にしたものだけ、この端末に残ります）。会話中は画面を開いたままにしてください。</p>
+
+    <h2>これまでの会話</h2>
+    <div id="hist"></div>
+  </main>
+</section>
+
+<!-- 会話中 -->
+<section id="live" class="hidden">
+  <header>
+    <span class="dot" id="dot"></span>
+    <span class="clock" id="clock">00:00</span>
+    <span class="stat" id="stat" style="flex:1">準備中…</span>
+    <span class="stat" id="cost">¥0</span>
+  </header>
+  <div class="lvl"><div id="lvl"></div></div>
+  <main style="padding-bottom:calc(env(safe-area-inset-bottom) + 90px)">
+    <div id="micAlert" class="alert hidden">マイクが止まっています。<button id="micResume" style="margin-left:6px">再開</button></div>
+    <div class="cards" id="cards"><p class="hint" id="cardsEmpty">会話が始まると、ここに「確認漏れ」「聞いてみる」などが出ます。とくに無いときは何も出ません。</p></div>
+    <div class="chips" id="chips"></div>
+    <h2 style="font-size:14px;color:var(--sub)">文字起こし</h2>
+    <div class="tx" id="tx"></div>
+  </main>
+  <div class="bar">
+    <button id="askNow">今すぐ</button>
+    <button id="endingBtn">終盤</button>
+    <button id="pauseBtn">一時停止</button>
+    <button id="stopBtn" class="primary">終了</button>
+  </div>
+</section>
+
+<!-- 振り返り -->
+<section id="review" class="hidden">
+  <header><button class="icon" id="backHome">‹</button><h1 id="rTitle">振り返り</h1></header>
+  <main>
+    <p class="hint" id="rMeta"></p>
+    <div id="rBody"></div>
+    <div class="row">
+      <button id="rRedo">振り返りを作り直す</button>
+      <button id="rCopyTx">文字起こしをコピー</button>
+      <button id="rDel" style="color:var(--red)">削除</button>
+    </div>
+    <h2>会話中に出た指摘</h2>
+    <div id="rCards"></div>
+    <h2>文字起こし</h2>
+    <div class="tx" id="rTx" style="max-height:none"></div>
+  </main>
+</section>
+
+<dialog id="settings"><div class="dlg">
+  <h2 style="margin-top:0">設定</h2>
+  <label>指摘を考える間隔</label>
+  <select id="sInt">
+    <option value="15">15秒ごと（こまめ）</option>
+    <option value="25">25秒ごと（おすすめ）</option>
+    <option value="40">40秒ごと（控えめ・安い）</option>
+    <option value="60">60秒ごと</option>
+  </select>
+  <label>よく出る言葉 <span class="hint">（薬剤名・社名・商品名など。文字起こしの精度が上がります）</span></label>
+  <textarea id="sHint" placeholder="例：抑肝散、六君子湯、Veeva"></textarea>
+  <label>カードの文字の大きさ</label>
+  <select id="sFs"><option value="16">ふつう</option><option value="17">やや大きい</option><option value="20">大きい</option><option value="24">とても大きい</option></select>
+  <label>画面</label>
+  <select id="sDark"><option value="0">明るい</option><option value="1">暗い（会話中に目立ちにくい）</option></select>
+  <p class="hint">使うAIのモデルは、共通設定（アプリ設定）の「talk-coach」で変えられます。</p>
+  <div class="row" style="margin-top:16px">
+    <button id="sSave" class="primary" style="flex:1">保存</button>
+    <button id="sClose">閉じる</button>
+  </div>
+  <div class="row" style="margin-top:22px"><button id="sLogout" style="color:var(--red)">ログアウト</button></div>
+</div></dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const SB_URL = "https://oqtyorwlrnrcyjxiassg.supabase.co";
+const SB_KEY = "sb_publishable_5KRsDfHG07lsUL7uUr6zpQ_2ehucxbJ";
+const FN = SB_URL + "/functions/v1/talk-coach";
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+let toastT;
+function toast(msg, ms = 2600) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), ms); }
+function show(id) { for (const s of ["login","home","live","review"]) $(s).classList.toggle("hidden", s !== id); window.scrollTo(0, 0); }
+
+// ===== 保存（この端末の中だけ）=====
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem("tc_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("tc_" + k, JSON.stringify(v)); return true; } catch { toast("端末の保存領域がいっぱいです。古い会話を削除してください", 4000); return false; } },
+};
+let S = Object.assign({ interval:25, hint:"", fs:17, dark:0 }, LS.get("settings", {}));
+let rate = LS.get("rate", 155);
+function applyLook() { document.documentElement.style.setProperty("--fs", S.fs + "px"); document.body.classList.toggle("dark", !!+S.dark); }
+applyLook();
+
+// ===== 関数の呼び出し =====
+async function token() { const { data } = await sb.auth.getSession(); return data.session?.access_token || ""; }
+async function call(body) {
+  const t = await token(); if (!t) { show("login"); throw new Error("ログインしてください"); }
+  const isForm = body instanceof FormData;
+  const r = await fetch(FN, { method:"POST", headers: Object.assign({ Authorization:"Bearer " + t, apikey:SB_KEY }, isForm ? {} : { "Content-Type":"application/json" }), body: isForm ? body : JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { show("login"); }
+  if (!r.ok) throw new Error(d.error || ("エラー " + r.status));
+  return d;
+}
+
+// ===== 準備画面 =====
+const MODE_NAME = { sell:"提案する側", buy:"説明を受ける側", mr:"医師面談", meet:"打ち合わせ" };
+const PRESETS = {
+  sell: ["相手の困りごと（具体的に・数字で）","今のやり方と不満","決める人・決め方","予算感","いつまでに必要か","比べている他社・代わりの手段","判断の基準","次の約束（日時・宿題）"],
+  buy: ["総額と、含まれないもの（別途費用）","追加費用が出る条件","支払いの時期と方法","解約・キャンセルの条件と費用","保証・アフターの内容と期間","納期・工期と遅れた場合","デメリット・向いていない人","口頭の約束を書面にしてもらえるか"],
+  mr: ["先生の関心・困っている患者像","今の処方・使い分け","使用経験と評価","懸念点（効果・副作用・飲みにくさ）","資料・情報提供の依頼","次回の約束"],
+  meet: ["目的・ゴールの確認","決まったこと","担当と期限","まだ決まっていないこと","次にやること"],
+};
+let draft = LS.get("draft", { mode:"sell", goal:"", who:"", checklist:[], offers:"", notes:"" });
+const newId = () => "c" + Math.random().toString(36).slice(2, 8);
+
+function renderSetup() {
+  for (const b of $("modeSeg").children) b.classList.toggle("on", b.dataset.m === draft.mode);
+  $("fGoal").value = draft.goal; $("fWho").value = draft.who; $("fOffers").value = draft.offers; $("fNotes").value = draft.notes;
+  $("clList").innerHTML = draft.checklist.map((c, i) =>
+    `<div class="cl"><input data-i="${i}" value="${esc(c.text)}" placeholder="確認したいこと"><button data-del="${i}" aria-label="削除">✕</button></div>`).join("")
+    || `<p class="hint">項目がありません。「この場面のおすすめを入れる」で入れられます。</p>`;
+  const tpls = LS.get("tpls", []);
+  $("tplSel").innerHTML = `<option value="">テンプレートを使う…</option>` + tpls.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join("")
+    + (tpls.length ? `<option value="del">（テンプレートを削除…）</option>` : "");
+}
+function readSetup() {
+  draft.goal = $("fGoal").value.trim(); draft.who = $("fWho").value.trim();
+  draft.offers = $("fOffers").value.trim(); draft.notes = $("fNotes").value.trim();
+  draft.checklist = [...$("clList").querySelectorAll("input")].map((el, i) => ({ id: draft.checklist[i]?.id || newId(), text: el.value.trim() })).filter(c => c.text);
+  LS.set("draft", draft);
+}
+$("modeSeg").onclick = e => { const m = e.target.dataset?.m; if (!m) return; readSetup(); draft.mode = m; LS.set("draft", draft); renderSetup(); };
+$("clAdd").onclick = () => { readSetup(); draft.checklist.push({ id:newId(), text:"" }); renderSetup(); const ins = $("clList").querySelectorAll("input"); ins[ins.length-1]?.focus(); };
+$("clPreset").onclick = () => {
+  readSetup();
+  const have = new Set(draft.checklist.map(c => c.text));
+  for (const t of PRESETS[draft.mode]) if (!have.has(t)) draft.checklist.push({ id:newId(), text:t });
+  renderSetup();
+};
+$("clList").onclick = e => { const i = e.target.dataset?.del; if (i == null) return; readSetup(); draft.checklist.splice(+i, 1); renderSetup(); };
+$("clList").onchange = readSetup;
+for (const id of ["fGoal","fWho","fOffers","fNotes"]) $(id).onchange = readSetup;
+$("tplSave").onclick = () => {
+  readSetup();
+  const name = prompt("テンプレートの名前", (MODE_NAME[draft.mode] || "") + (draft.who ? "：" + draft.who : ""));
+  if (!name) return;
+  const tpls = LS.get("tpls", []).filter(t => t.name !== name);
+  tpls.unshift({ name, mode:draft.mode, checklist:draft.checklist.map(c => c.text), offers:draft.offers, notes:draft.notes });
+  LS.set("tpls", tpls.slice(0, 30)); renderSetup(); toast("テンプレートを保存しました");
+};
+$("tplSel").onchange = () => {
+  const v = $("tplSel").value; const tpls = LS.get("tpls", []);
+  if (v === "del") {
+    const name = prompt("削除するテンプレートの名前を入れてください\n" + tpls.map(t => "・" + t.name).join("\n"));
+    if (name) { LS.set("tpls", tpls.filter(t => t.name !== name.trim())); toast("削除しました"); }
+  } else if (v !== "") {
+    const t = tpls[+v];
+    draft = { ...draft, mode:t.mode, checklist:t.checklist.map(text => ({ id:newId(), text })), offers:t.offers || "", notes:t.notes || "" };
+    LS.set("draft", draft); toast("テンプレートを読み込みました");
+  }
+  renderSetup();
+};
+
+// ===== 履歴 =====
+const sessions = () => LS.get("sessions", []);
+function saveSession(s) {
+  let list = sessions().filter(x => x.id !== s.id); list.unshift(s);
+  list = list.slice(0, 60);
+  while (!LS.set("sessions", list) && list.length > 1) list.pop();
+}
+const fmt = sec => { sec = Math.max(0, Math.floor(sec)); const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return (h ? h + ":" : "") + String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0"); };
+const yen = usd => { const v = (usd || 0) * rate; return "¥" + (v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString()); };
+function renderHist() {
+  const list = sessions();
+  $("hist").innerHTML = list.length ? list.map(s => `<div class="item" data-id="${s.id}"><div class="t">
+      <b>${esc(s.review?.title || s.setup.goal || s.setup.who || MODE_NAME[s.setup.mode])}</b>
+      <small>${new Date(s.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })}・${fmt(s.duration)}・${yen(s.usd)}</small></div>
+      <span class="tag">${MODE_NAME[s.setup.mode] || ""}</span></div>`).join("")
+    : `<p class="hint">まだありません。</p>`;
+}
+$("hist").onclick = e => { const it = e.target.closest(".item"); if (it) openReview(it.dataset.id); };
+
+// ===== 会話中 =====
+let L = null; // いまの会話
+let stream, actx, an, lvlRAF, wakeLock, recorder, segParts, segStart, segMax, segVoice, quietSince, segIdx;
+const mime = ["audio/mp4","audio/webm;codecs=opus","audio/webm"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+const MIN_SEG = 6000, MAX_SEG = 15000, QUIET_DB = -45, QUIET_MS = 350, VOICE_DB = -48;
+
+function setStat(t, mode) { $("stat").textContent = t; $("dot").className = "dot" + (mode ? " " + mode : ""); }
+function addCost(usd) { if (typeof usd === "number" && usd > 0) { L.usd += usd; $("cost").textContent = yen(L.usd); } }
+
+async function startTalk() {
+  readSetup();
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); await actx.resume?.(); } catch {}
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } }); }
+  catch { return toast("マイクを使う許可が必要です", 3500); }
+  L = {
+    id:"s" + Date.now(), at:new Date().toISOString(), setup:JSON.parse(JSON.stringify(draft)),
+    segs:[], summary:"", foldUpTo:0, cards:[], done:new Set(), usd:0, duration:0,
+    startAt:Date.now(), pausedMs:0, pausedAt:0, ending:false,
+    pending:0, queue:Promise.resolve(), lastAdvise:0, adviseBusy:false, charsSince:0,
+  };
+  segIdx = 0;
+  $("cards").innerHTML = `<p class="hint" id="cardsEmpty">会話が始まると、ここに「確認漏れ」「聞いてみる」などが出ます。とくに無いときは何も出ません。</p>`;
+  $("tx").textContent = ""; $("cost").textContent = "¥0"; $("endingBtn").classList.remove("on"); $("pauseBtn").textContent = "一時停止";
+  renderChips(); show("live");
+  startLevel(); startSeg(); watchTrack();
+  L.tick = setInterval(() => { $("clock").textContent = fmt(elapsed()/1000); maybeAdvise(); }, 1000);
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  setStat("聞き取り中", "rec");
+  call({ action:"ping" }).then(d => { if (d.rate) { rate = d.rate; LS.set("rate", rate); } }).catch(() => {});
+}
+$("startBtn").onclick = startTalk;
+const elapsed = () => (L.pausedAt || Date.now()) - L.startAt - L.pausedMs;
+
+// 音量を見て、話の切れ目で区切る
+function startLevel() {
+  try {
+    const src = actx.createMediaStreamSource(stream);
+    an = actx.createAnalyser(); an.fftSize = 1024; src.connect(an); L.src = src;
+  } catch { an = null; }
+  const data = new Float32Array(1024);
+  const loop = () => {
+    let db = -60;
+    if (an) { an.getFloatTimeDomainData(data); let s = 0; for (let i = 0; i < data.length; i++) s += data[i]*data[i]; db = 20*Math.log10(Math.sqrt(s/data.length) + 1e-9); }
+    $("lvl").style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + "%";
+    if (recorder?.state === "recording") {
+      const now = Date.now(), len = now - segStart;
+      segMax = Math.max(segMax, db);
+      if (db > VOICE_DB) segVoice++;
+      if (db < QUIET_DB) quietSince = quietSince || now; else quietSince = 0;
+      // 6秒たって、話が途切れたところで区切る。長く話し続けていても15秒で区切る（分析器が無いときは10秒ごと）
+      if ((an && len > MIN_SEG && quietSince && now - quietSince > QUIET_MS) || len > (an ? MAX_SEG : 10000)) cutSeg();
+    }
+    lvlRAF = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function startSeg() {
+  segParts = []; segStart = Date.now(); segMax = -90; segVoice = 0; quietSince = 0;
+  const rec = new MediaRecorder(stream, mime ? { mimeType:mime, audioBitsPerSecond:48000 } : {});
+  const parts = segParts, idx = segIdx++, t0 = segStart;
+  let maxDb = -90, voice = 0;
+  rec.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
+  rec.onstop = () => {
+    const blob = new Blob(parts, { type: rec.mimeType || mime || "audio/mp4" });
+    const sec = (Date.now() - t0) / 1000;
+    // 声がほとんど入っていない区切りは送らない（料金の節約）
+    if (blob.size && (rec._voice > 3 || !an)) enqueue(idx, blob, sec);
+  };
+  rec.start();
+  recorder = rec;
+}
+function cutSeg() {
+  if (!recorder || recorder.state !== "recording") return;
+  recorder._voice = segVoice;
+  if (segMax < VOICE_DB && an) recorder._voice = 0;
+  recorder.stop();
+  if (L && !L.pausedAt && !L.stopping) startSeg();
+}
+
+// 文字起こしは順番どおりに1つずつ
+function enqueue(idx, blob, sec) {
+  L.pending++; setStat("聞き取り中", "rec");
+  const cur = L;
+  L.queue = L.queue.then(async () => {
+    const fd = new FormData();
+    const ext = (blob.type.includes("webm") ? "webm" : "m4a");
+    fd.append("file", blob, `seg${idx}.${ext}`);
+    fd.append("seconds", String(sec));
+    fd.append("prev", cur.segs.slice(-3).map(s => s.text).join(""));
+    if (S.hint) fd.append("hint", S.hint);
+    for (let i = 0; i < 2; i++) {
+      try {
+        const d = await call(fd);
+        addCost(d.usd);
+        if (d.text) { cur.segs.push({ t:Math.round((Date.now() - cur.startAt)/1000), text:d.text }); cur.charsSince += d.text.length; renderTx(); }
+        break;
+      } catch (e) { if (i) toast("文字起こしに失敗：" + e.message, 3500); else await new Promise(r => setTimeout(r, 1200)); }
+    }
+  }).finally(() => { cur.pending--; if (cur === L) maybeAdvise(); });
+}
+function renderTx() {
+  const el = $("tx");
+  el.textContent = L.segs.map(s => s.text).join("\n");
+  el.scrollTop = el.scrollHeight;
+}
+
+// ===== 指摘を考える =====
+function maybeAdvise(force = false) {
+  if (!L || L.adviseBusy || L.stopping) return;
+  const since = Date.now() - L.lastAdvise;
+  if (force ? L.segs.length : (L.charsSince >= 60 && since >= S.interval * 1000)) advise();
+}
+async function advise() {
+  const cur = L; cur.adviseBusy = true; setStat("考え中", "think");
+  const sentUpTo = cur.segs.length;
+  const recentSegs = cur.segs.slice(cur.foldUpTo, sentUpTo);
+  const recent = recentSegs.map(s => s.text).join("\n");
+  const fold = recent.length > 2500;
+  cur.charsSince = 0; cur.lastAdvise = Date.now();
+  try {
+    const d = await call({
+      action:"advise", setup:cur.setup, summary:cur.summary, recent, fold,
+      prior: cur.cards.map(c => c.text), open: cur.setup.checklist.filter(c => !cur.done.has(c.id)).map(c => c.id),
+      elapsed_min: elapsed() / 60000, ending: cur.ending,
+    });
+    addCost(d.usd);
+    if (fold && d.summary) { cur.summary = d.summary; cur.foldUpTo = Math.max(cur.foldUpTo, sentUpTo - 2); }
+    for (const id of d.covered || []) cur.done.add(id);
+    renderChips();
+    const have = new Set(cur.cards.map(c => c.text));
+    const fresh = (d.cards || []).filter(c => !have.has(c.text)).map(c => ({ ...c, at:Math.round(elapsed()/1000) }));
+    if (fresh.length) { cur.cards.push(...fresh); renderCards(fresh.length); }
+  } catch (e) { toast("指摘を作れませんでした：" + e.message, 3500); }
+  finally { cur.adviseBusy = false; if (cur === L && !cur.pausedAt) setStat("聞き取り中", "rec"); }
+}
+const KIND = { missing:"確認漏れ", unclear:"あいまい・食い違い", ask:"聞いてみる", offer:"提案できる", warn:"注意" };
+function cardHtml(c, i, old) {
+  return `<div class="card ${c.type}${old ? " old" : ""}"><div class="k">${KIND[c.type] || ""}</div><div class="x">${esc(c.text)}</div>
+    ${c.why && !old ? `<div class="w">${esc(c.why)}</div>` : ""}${old ? "" : `<button class="done" data-i="${i}">済</button>`}</div>`;
+}
+function renderCards() {
+  // 新しいものを上に。「済」にしていない新しい3枚を大きく、残りは薄く
+  const list = L.cards.map((c, i) => ({ c, i })).reverse();
+  const active = list.filter(x => !x.c.dismissed).slice(0, 3);
+  const rest = list.filter(x => !active.includes(x)).slice(0, 8);
+  $("cards").innerHTML = active.map(x => cardHtml(x.c, x.i, false)).join("") + rest.map(x => cardHtml(x.c, x.i, true)).join("")
+    || `<p class="hint">いまのところ指摘はありません。</p>`;
+}
+$("cards").onclick = e => { const i = e.target.dataset?.i; if (i == null) return; L.cards[+i].dismissed = true; renderCards(); };
+function renderChips() {
+  $("chips").innerHTML = L.setup.checklist.map(c => `<span class="chip ${L.done.has(c.id) ? "ok" : ""}" data-id="${c.id}">${esc(c.text)}</span>`).join("");
+}
+$("chips").onclick = e => { const id = e.target.dataset?.id; if (!id) return; L.done.has(id) ? L.done.delete(id) : L.done.add(id); renderChips(); };
+$("askNow").onclick = () => { if (!L.segs.length) return toast("まだ会話が文字になっていません"); if (L.adviseBusy) return toast("考え中です"); advise(); };
+$("endingBtn").onclick = () => { L.ending = !L.ending; $("endingBtn").classList.toggle("on", L.ending); if (L.ending) { toast("終盤モード：次の約束や宿題を優先して見ます"); if (L.segs.length && !L.adviseBusy) advise(); } };
+$("pauseBtn").onclick = () => {
+  if (!L.pausedAt) { L.pausedAt = Date.now(); cutSeg(); $("pauseBtn").textContent = "再開"; setStat("一時停止中", ""); }
+  else { L.pausedMs += Date.now() - L.pausedAt; L.pausedAt = 0; startSeg(); $("pauseBtn").textContent = "一時停止"; setStat("聞き取り中", "rec"); }
+};
+
+// iPhoneは画面を消したり別アプリにするとマイクが止まる。戻ってきたら確かめる
+function watchTrack() {
+  const tr = stream?.getAudioTracks()[0]; if (!tr) return;
+  tr.onended = () => { if (L && !L.stopping) $("micAlert").classList.remove("hidden"); };
+}
+async function resumeMic() {
+  try {
+    try { if (recorder?.state === "recording") recorder.stop(); } catch {}
+    stream?.getTracks().forEach(t => t.stop());
+    try { await actx?.resume?.(); } catch {}
+    stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } });
+    try { L.src?.disconnect(); const src = actx.createMediaStreamSource(stream); src.connect(an); L.src = src; } catch {}
+    watchTrack(); if (!L.pausedAt) startSeg();
+    $("micAlert").classList.add("hidden"); toast("再開しました");
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  } catch { $("micAlert").classList.remove("hidden"); }
+}
+$("micResume").onclick = resumeMic;
+document.addEventListener("visibilitychange", async () => {
+  if (!L || L.stopping || document.visibilityState !== "visible") return;
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  await new Promise(r => setTimeout(r, 1500));
+  const tr = stream?.getAudioTracks()[0];
+  if (!tr || tr.readyState === "ended" || tr.muted || (!L.pausedAt && recorder?.state !== "recording")) resumeMic();
+});
+
+// ===== 終了 → 振り返り =====
+$("stopBtn").onclick = async () => {
+  if (!confirm("会話を終了して、振り返りを作りますか？")) return;
+  const cur = L; cur.stopping = true;
+  if (!cur.pausedAt) cur.pausedAt = Date.now();
+  cur.duration = elapsed() / 1000;
+  clearInterval(cur.tick); cancelAnimationFrame(lvlRAF);
+  if (recorder?.state === "recording") { recorder._voice = segVoice; recorder.stop(); }
+  setStat("残りを文字にしています…", "think");
+  await new Promise(r => setTimeout(r, 300));
+  await cur.queue;
+  stream?.getTracks().forEach(t => t.stop());
+  try { cur.src?.disconnect(); } catch {}
+  try { await wakeLock?.release(); } catch {}
+  const s = {
+    id:cur.id, at:cur.at, setup:cur.setup, duration:cur.duration, usd:cur.usd,
+    transcript: cur.segs.map(x => x.text).join("\n"), cards: cur.cards.map(({ type, text, why, at }) => ({ type, text, why, at })),
+    done:[...cur.done], review:null,
+  };
+  L = null;
+  saveSession(s); renderHist();
+  openReview(s.id);
+  if (s.transcript.trim()) makeReview(s.id); else $("rBody").innerHTML = `<p class="hint">会話が文字になっていなかったので、振り返りは作りませんでした。</p>`;
+};
+
+async function makeReview(id) {
+  const s = sessions().find(x => x.id === id); if (!s) return;
+  $("rBody").innerHTML = `<p class="hint">振り返りを作っています…（20〜40秒ほど）</p>`;
+  try {
+    const d = await call({ action:"review", setup:s.setup, transcript:s.transcript, cards:s.cards.map(c => `${KIND[c.type]}：${c.text}`) });
+    s.review = d.result; s.usd += d.usd || 0; saveSession(s); renderHist();
+    if (!$("review").classList.contains("hidden") && curReview === id) openReview(id);
+  } catch (e) { $("rBody").innerHTML = `<p class="alert">振り返りを作れませんでした：${esc(e.message)}</p>`; }
+}
+
+let curReview = null;
+function openReview(id) {
+  const s = sessions().find(x => x.id === id); if (!s) return;
+  curReview = id; show("review");
+  const r = s.review;
+  $("rTitle").textContent = r?.title || "振り返り";
+  $("rMeta").textContent = `${new Date(s.at).toLocaleString("ja-JP")}・${MODE_NAME[s.setup.mode]}・${fmt(s.duration)}・${yen(s.usd)}`;
+  const ul = (h, a) => a?.length ? `<h3>${h}</h3><ul>${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const notDone = s.setup.checklist.filter(c => !(s.done || []).includes(c.id)).map(c => c.text);
+  if (r) {
+    $("rBody").innerHTML = `<div class="sec">
+      <div class="box">${esc(r.summary)}</div>
+      ${ul("⚠ 聞きそびれたこと", r.missed)}
+      ${ul("確認リストで済んでいない項目", notDone)}
+      ${ul("あいまいなままのこと", r.unclear)}
+      ${ul("決まったこと", r.decided)}
+      ${ul("次にやること", r.next)}
+      ${ul("よかった点", r.good)}
+      ${ul("次に活かせる点", r.improve)}
+      ${r.followup ? `<h3>お礼・確認メッセージの下書き</h3><div class="box" id="rFollow">${esc(r.followup)}</div><div class="row"><button id="rCopyF">下書きをコピー</button></div>` : ""}
+    </div>`;
+    $("rCopyF") && ($("rCopyF").onclick = () => copy(r.followup));
+  } else if (!s.transcript.trim()) {
+    $("rBody").innerHTML = `<p class="hint">会話が文字になっていなかったので、振り返りはありません。</p>`;
+  }
+  $("rCards").innerHTML = s.cards.length ? s.cards.map(c => `<div class="card ${c.type}" style="animation:none"><div class="k">${KIND[c.type]}・${fmt(c.at)}</div><div class="x" style="font-size:15px">${esc(c.text)}</div>${c.why ? `<div class="w">${esc(c.why)}</div>` : ""}</div>`).join("") : `<p class="hint">ありませんでした。</p>`;
+  $("rTx").textContent = s.transcript || "（なし）";
+}
+async function copy(t) { try { await navigator.clipboard.writeText(t); toast("コピーしました"); } catch { toast("コピーできませんでした"); } }
+$("rCopyTx").onclick = () => { const s = sessions().find(x => x.id === curReview); if (s) copy(s.transcript); };
+$("rRedo").onclick = () => makeReview(curReview);
+$("rDel").onclick = () => { if (!confirm("この会話を削除しますか？")) return; LS.set("sessions", sessions().filter(x => x.id !== curReview)); renderHist(); show("home"); };
+$("backHome").onclick = () => { renderSetup(); show("home"); };
+
+// ===== 設定 =====
+$("openSet").onclick = () => { $("sInt").value = String(S.interval); $("sHint").value = S.hint; $("sFs").value = String(S.fs); $("sDark").value = String(S.dark); $("settings").showModal(); };
+$("sClose").onclick = () => $("settings").close();
+$("sSave").onclick = () => {
+  S = { interval:+$("sInt").value, hint:$("sHint").value.trim(), fs:+$("sFs").value, dark:+$("sDark").value };
+  LS.set("settings", S); applyLook(); $("settings").close(); toast("保存しました");
+};
+$("sLogout").onclick = async () => { await sb.auth.signOut(); $("settings").close(); show("login"); };
+
+// ===== ログイン =====
+$("loginForm").onsubmit = async e => {
+  e.preventDefault(); $("lBtn").disabled = true; $("lMsg").textContent = "";
+  const { error } = await sb.auth.signInWithPassword({ email:$("lEmail").value.trim(), password:$("lPass").value });
+  $("lBtn").disabled = false;
+  if (error) { $("lMsg").textContent = "ログインできませんでした：" + error.message; return; }
+  $("lPass").value = ""; renderSetup(); renderHist(); show("home");
+};
+
+(async () => { renderSetup(); renderHist(); show((await token()) ? "home" : "login"); })();
+</script>
+</body>
+</html>
